@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17365d">
+<title>Control de Compras y Rendiciones - Bolivia</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+:root{--blue:#17365d;--blue2:#245b8f;--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--ok:#147d4d;--warn:#a15c00;--danger:#b42318;--border:#d8dee6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text)}
+header{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;padding:18px 16px;position:sticky;top:0;z-index:10}
+h1{font-size:20px;margin:0 0 4px}header small{opacity:.85}
+nav{display:flex;gap:6px;overflow:auto;background:#fff;border-bottom:1px solid var(--border);padding:7px;position:sticky;top:76px;z-index:9}
+nav button{border:0;background:#eef2f6;padding:9px 12px;border-radius:10px;white-space:nowrap;font-weight:650}
+nav button.active{background:var(--blue);color:#fff}
+main{max-width:1050px;margin:auto;padding:14px}.tab{display:none}.tab.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:15px;margin-bottom:14px;box-shadow:0 2px 8px #0000000a}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media(max-width:680px){.grid,.grid3{grid-template-columns:1fr}}
+label{display:block;font-size:12px;font-weight:700;color:#475467;margin:5px 0 4px}
+input,select,textarea{width:100%;padding:11px;border:1px solid #cbd3dc;border-radius:9px;background:#fff;font:inherit}input[readonly]{background:#f1f3f5}
+button{font:inherit;cursor:pointer}.primary{background:var(--blue);color:#fff;border:0;border-radius:9px;padding:11px 15px;font-weight:700}.secondary{background:#eef2f6;border:1px solid var(--border);border-radius:9px;padding:10px 14px;font-weight:650}.danger{background:#b42318;color:#fff;border:0;border-radius:9px;padding:10px 14px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.metric{font-size:27px;font-weight:800}.muted{color:var(--muted);font-size:13px}
+.alert{padding:12px;border-radius:10px;margin-bottom:10px;font-weight:650}.ok{background:#e8f7ef;color:var(--ok)}.warn{background:#fff4df;color:var(--warn)}.dangerBox{background:#fdecec;color:var(--danger)}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}th{background:#f7f8fa}
+.tableWrap{overflow:auto}.pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2f6;font-size:11px;font-weight:700}
+.small{font-size:12px}.right{text-align:right}
+#reader{max-width:430px;margin:auto}.qrbox{border:2px dashed #aab5c2;padding:12px;border-radius:12px;background:#fafbfc}
+.hidden{display:none!important}.logo{font-weight:800;letter-spacing:.2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Control de Compras y Rendiciones</h1>
+  <small>Bolivia · Gestión <span id="headYear"></span> · Caja mensual Bs <span id="headCaja"></span></small>
+</header>
+<nav id="nav">
+<button data-tab="inicio" class="active">Inicio</button>
+<button data-tab="registrar">Registrar compra</button>
+<button data-tab="rendiciones">Rendiciones</button>
+<button data-tab="compras">Compras</button>
+<button data-tab="config">Configuración</button>
+</nav>
+<main>
+
+<section id="inicio" class="tab active">
+ <div id="cashAlert"></div>
+ <div class="grid3">
+  <div class="card"><div class="muted">Compras acumuladas</div><div class="metric" id="mTotal">Bs 0,00</div></div>
+  <div class="card"><div class="muted">Facturas registradas</div><div class="metric" id="mCount">0</div></div>
+  <div class="card"><div class="muted">Rendiciones</div><div class="metric" id="mRend">0</div></div>
+ </div>
+ <div class="grid3">
+  <div class="card"><div class="muted">Caja disponible</div><div class="metric" id="mSaldo">Bs 7.000,00</div></div>
+  <div class="card"><div class="muted">% consumido</div><div class="metric" id="mPct">0%</div></div>
+  <div class="card"><div class="muted">Próxima acción</div><div id="mEstado" class="pill">Sin gastos</div></div>
+ </div>
+ <div class="card">
+   <h3>Últimas compras</h3><div class="tableWrap"><table><thead><tr><th>Rend.</th><th>Fecha</th><th>Factura</th><th>Proveedor</th><th>Total</th></tr></thead><tbody id="lastRows"></tbody></table></div>
+ </div>
+ <div class="card">
+  <h3>Respaldo de datos</h3>
+  <div class="muted">Los datos se guardan en este navegador. Exporta una copia periódicamente.</div>
+  <div class="actions"><button class="primary" onclick="exportJSON()">Exportar respaldo</button><button class="secondary" onclick="exportCSV()">Exportar compras CSV</button><button class="secondary" onclick="printReport()">Imprimir reporte</button><button class="danger" onclick="resetAll()">Borrar todos los datos</button></div>
+ </div>
+</section>
+
+<section id="registrar" class="tab">
+ <div class="card">
+  <h2>1. Escanear QR de la factura</h2>
+  <div class="qrbox">
+   <div id="reader"></div>
+   <div class="actions">
+    <button class="primary" onclick="startScanner()">Activar cámara</button>
+    <button class="secondary" onclick="stopScanner()">Detener</button>
+   </div>
+   <label>Pegar contenido del QR (si la cámara no funciona)</label>
+   <textarea id="qrText" rows="3" placeholder="https://.../consulta/QR?nit=...&cuf=...&numero=...&t=2"></textarea>
+   <div class="actions"><button class="secondary" onclick="parseQR()">Procesar QR</button><a id="siatLink" class="secondary hidden" target="_blank" rel="noopener">Verificar en SIAT</a></div>
+   <div id="qrStatus" class="small muted"></div>
+  </div>
+ </div>
+ <div class="card">
+  <h2>2. Confirmar datos de la compra</h2>
+  <form id="purchaseForm">
+   <div class="grid">
+    <div><label>N° Rendición</label><input id="fRend" readonly></div>
+    <div><label>N° Factura *</label><input id="fFactura" required></div>
+    <div><label>NIT proveedor *</label><input id="fNit" required></div>
+    <div><label>CUF</label><input id="fCuf"></div>
+    <div><label>Proveedor / razón social *</label><input id="fProveedor" required></div>
+    <div><label>Fecha emisión *</label><input id="fFecha" type="date" required></div>
+    <div><label>Hora</label><input id="fHora" type="time"></div>
+    <div><label>Total Bs *</label><input id="fTotal" type="number" step="0.01" min="0" required></div>
+    <div><label>Categoría</label><select id="fCat"></select></div>
+    <div><label>Medio de pago</label><select id="fPago"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Otro</option></select></div>
+    <div><label>Centro de costo</label><input id="fCentro" placeholder="Ej. Administración"></div>
+    <div><label>Descripción / concepto</label><input id="fDesc" placeholder="Ej. Compra de materiales"></div>
+   </div>
+   <label>Observaciones</label><textarea id="fObs" rows="2"></textarea>
+   <div class="actions"><button class="primary" type="submit">Guardar compra</button><button class="secondary" type="button" onclick="newPurchase()">Limpiar</button></div>
+  </form>
+ </div>
+</section>
+
+<section id="rendiciones" class="tab">
+ <div class="card">
+  <h2>Rendiciones</h2>
+  <div class="grid">
+   <div><label>Nueva rendición</label><input id="newRendDate" type="date"></div>
+   <div><label>Observación</label><input id="newRendObs"></div>
+  </div>
+  <div class="actions"><button class="primary" onclick="createRend()">Crear rendición</button></div>
+  <p class="muted">El número es correlativo durante toda la gestión.</p>
+ </div>
+ <div class="card"><div class="tableWrap"><table><thead><tr><th>Rend.</th><th>Fecha</th><th>Gasto</th><th>% caja</th><th>Saldo</th><th>Estado</th><th>Reposición</th></tr></thead><tbody id="rendRows"></tbody></table></div></div>
+</section>
+
+<section id="compras" class="tab">
+ <div class="card">
+  <h2>Compras registradas</h2>
+  <div class="grid">
+   <div><label>Buscar</label><input id="searchBox" oninput="renderPurchases()" placeholder="Factura, proveedor, NIT, categoría..."></div>
+   <div><label>Rendición</label><select id="filterRend" onchange="renderPurchases()"><option value="">Todas</option></select></div>
+  </div>
+ </div>
+ <div class="card"><div class="tableWrap"><table><thead><tr><th>Rend.</th><th>Fecha</th><th>Factura</th><th>Proveedor</th><th>NIT</th><th>Total</th><th>Categoría</th><th></th></tr></thead><tbody id="purchaseRows"></tbody></table></div></div>
+</section>
+
+<section id="config" class="tab">
+ <div class="card">
+  <h2>Configuración</h2>
+  <div class="grid">
+   <div><label>Gestión</label><input id="cYear" type="number"></div>
+   <div><label>Caja mensual Bs</label><input id="cCaja" type="number" step="0.01"></div>
+   <div><label>Alerta preventiva %</label><input id="cWarn" type="number" step="1"></div>
+   <div><label>Límite de rendición %</label><input id="cLimit" type="number" step="1"></div>
+  </div>
+  <div class="actions"><button class="primary" onclick="saveConfig()">Guardar configuración</button></div>
+ </div>
+ <div class="card">
+  <h3>Cómo trabajar</h3>
+  <ol class="small">
+   <li>Crear la rendición que corresponda.</li>
+   <li>Registrar cada factura escaneando su QR.</li>
+   <li>Confirmar proveedor, fecha y total que aparecen en la factura.</li>
+   <li>El sistema suma los gastos y controla el porcentaje de caja.</li>
+   <li>Al llegar a la alerta preventiva, preparar la rendición; al llegar al límite, solicitar reposición.</li>
+   <li>Exportar respaldo y reporte al finalizar cada rendición.</li>
+  </ol>
+ </div>
+</section>
+</main>
+
+<script>
+const KEY='controlComprasBolivia_v3';
+let db=JSON.parse(localStorage.getItem(KEY)||'null')||{
+ config:{year:new Date().getFullYear(),cash:7000,warn:60,limit:70},
+ rendiciones:[{id:1,date:new Date().toISOString().slice(0,10),obs:'Rendición inicial',reimbursed:0}],
+ purchases:[]
+};
+let scanner=null;
+
+function money(n){return 'Bs '+Number(n||0).toLocaleString('es-BO',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function save(){localStorage.setItem(KEY,JSON.stringify(db)); renderAll()}
+function nextRend(){return db.rendiciones.length?Math.max(...db.rendiciones.map(x=>x.id))+1:1}
+function currentRend(){return db.rendiciones.length?db.rendiciones[db.rendiciones.length-1]:null}
+function totalSpent(){return db.purchases.reduce((s,p)=>s+Number(p.total||0),0)}
+function rendSpent(id){return db.purchases.filter(p=>p.rend==id).reduce((s,p)=>s+Number(p.total||0),0)}
+function cashState(){
+ const spent=totalSpent(), pct=db.config.cash?spent/db.config.cash*100:0, bal=Math.max(0,db.config.cash-spent);
+ return {spent,pct,bal};
+}
+function renderAll(){
+ document.getElementById('headYear').textContent=db.config.year;
+ document.getElementById('headCaja').textContent=Number(db.config.cash).toLocaleString('es-BO');
+ const s=cashState();
+ document.getElementById('mTotal').textContent=money(s.spent);
+ document.getElementById('mCount').textContent=db.purchases.length;
+ document.getElementById('mRend').textContent=db.rendiciones.length;
+ document.getElementById('mSaldo').textContent=money(s.bal);
+ document.getElementById('mPct').textContent=s.pct.toFixed(1)+'%';
+ let state=s.pct>=db.config.limit?'LÍMITE ALCANZADO':s.pct>=db.config.warn?'PREPARAR RENDICIÓN':'Dentro del límite';
+ document.getElementById('mEstado').textContent=state;
+ let al=document.getElementById('cashAlert');
+ al.innerHTML=s.pct>=db.config.limit?'<div class="alert dangerBox">⛔ Se alcanzó el '+db.config.limit+'% de la caja. Corresponde gestionar la rendición y reposición.</div>':
+ s.pct>=db.config.warn?'<div class="alert warn">⚠️ Consumo en '+s.pct.toFixed(1)+'%. Ya superó la alerta preventiva del '+db.config.warn+'%.</div>':
+ '<div class="alert ok">✓ Caja dentro del nivel previsto. Consumo actual: '+s.pct.toFixed(1)+'%.</div>';
+ document.getElementById('fRend').value=String(currentRend()?.id||1).padStart(3,'0');
+ renderLast(); renderRend(); renderPurchases(); fillRendFilters();
+}
+function renderLast(){
+ let rows=db.purchases.slice().sort((a,b)=>b.created.localeCompare(a.created)).slice(0,8);
+ document.getElementById('lastRows').innerHTML=rows.length?rows.map(p=>`<tr><td>${String(p.rend).padStart(3,'0')}</td><td>${p.date}</td><td>${p.factura}</td><td>${esc(p.proveedor)}</td><td>${money(p.total)}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Sin compras registradas.</td></tr>';
+}
+function renderRend(){
+ document.getElementById('rendRows').innerHTML=db.rendiciones.map(r=>{
+   let g=rendSpent(r.id), pct=db.config.cash?g/db.config.cash*100:0;
+   let estado=pct>=db.config.limit?'REPOSICIÓN':pct>=db.config.warn?'PREPARAR':'ABIERTA';
+   let rep=r.reimbursed||0;
+   return `<tr><td>${String(r.id).padStart(3,'0')}</td><td>${r.date}</td><td>${money(g)}</td><td>${pct.toFixed(1)}%</td><td>${money(Math.max(0,db.config.cash-g))}</td><td><span class="pill">${estado}</span></td><td>${rep?money(rep):'<button class="secondary" onclick="reimburse('+r.id+')">Registrar reposición</button>'}</td></tr>`;
+ }).join('');
+}
+function renderPurchases(){
+ let q=(document.getElementById('searchBox')?.value||'').toLowerCase(), rf=document.getElementById('filterRend')?.value||'';
+ let arr=db.purchases.filter(p=>(!rf||String(p.rend)==rf)&&(!q||JSON.stringify(p).toLowerCase().includes(q)));
+ document.getElementById('purchaseRows').innerHTML=arr.map(p=>`<tr><td>${String(p.rend).padStart(3,'0')}</td><td>${p.date}</td><td>${p.factura}</td><td>${esc(p.proveedor)}</td><td>${p.nit}</td><td>${money(p.total)}</td><td>${esc(p.cat)}</td><td><button class="danger" onclick="deletePurchase('${p.id}')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">No hay resultados.</td></tr>';
+}
+function fillRendFilters(){
+ let sel=document.getElementById('filterRend'); if(!sel)return;
+ let old=sel.value; sel.innerHTML='<option value="">Todas</option>'+db.rendiciones.map(r=>`<option value="${r.id}">${String(r.id).padStart(3,'0')}</option>`).join(''); sel.value=old;
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function parseQR(){
+ const raw=document.getElementById('qrText').value.trim();
+ if(!raw){document.getElementById('qrStatus').textContent='Pegue o escanee un QR.';return}
+ let nit='',cuf='',numero='',t='';
+ try{
+  let u=new URL(raw);
+  nit=u.searchParams.get('nit')||''; cuf=u.searchParams.get('cuf')||''; numero=u.searchParams.get('numero')||''; t=u.searchParams.get('t')||'';
+ }catch(e){}
+ if(!nit && raw.includes('|')){
+   const parts=raw.split('|');
+   nit=parts[0]||''; numero=parts[2]||''; 
+ }
+ document.getElementById('fNit').value=nit;
+ document.getElementById('fCuf').value=cuf;
+ document.getElementById('fFactura').value=numero;
+ if(raw.startsWith('http')){
+   const a=document.getElementById('siatLink'); a.href=raw; a.classList.remove('hidden');
+ }
+ document.getElementById('qrStatus').textContent=(nit||cuf||numero)?'QR procesado. Complete/confirmar los datos visibles de la factura.':'No se reconoció el formato del QR.';
+}
+function onScan(decoded){document.getElementById('qrText').value=decoded;parseQR();stopScanner()}
+async function startScanner(){
+ try{
+  scanner=new Html5Qrcode("reader");
+  await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:250}},onScan,()=>{});
+  document.getElementById('qrStatus').textContent='Cámara activa: enfoque el QR de la factura.';
+ }catch(e){document.getElementById('qrStatus').textContent='No se pudo activar la cámara. Use HTTPS y permisos de cámara, o pegue el contenido del QR.'}
+}
+async function stopScanner(){if(scanner){try{await scanner.stop();}catch(e){} try{scanner.clear()}catch(e){} scanner=null}}
+
+function newPurchase(){
+ document.getElementById('purchaseForm').reset(); document.getElementById('fRend').value=String(currentRend()?.id||1).padStart(3,'0'); document.getElementById('qrText').value=''; document.getElementById('siatLink').classList.add('hidden');
+}
+document.getElementById('purchaseForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const p={id:crypto.randomUUID?crypto.randomUUID():Date.now().toString(),rend:Number(document.getElementById('fRend').value),factura:document.getElementById('fFactura').value.trim(),nit:document.getElementById('fNit').value.trim(),cuf:document.getElementById('fCuf').value.trim(),proveedor:document.getElementById('fProveedor').value.trim(),date:document.getElementById('fFecha').value,hora:document.getElementById('fHora').value,total:Number(document.getElementById('fTotal').value),cat:document.getElementById('fCat').value,pago:document.getElementById('fPago').value,centro:document.getElementById('fCentro').value,desc:document.getElementById('fDesc').value,obs:document.getElementById('fObs').value,created:new Date().toISOString()};
+ if(db.purchases.some(x=>x.factura===p.factura&&x.nit===p.nit)){alert('Posible factura duplicada: ya existe una compra con el mismo NIT y número de factura.');return}
+ if(!p.rend||!p.factura||!p.nit||!p.proveedor||!p.date||!(p.total>=0)){alert('Complete los campos obligatorios.');return}
+ db.purchases.push(p); save(); alert('Compra guardada en la rendición '+String(p.rend).padStart(3,'0')+'.'); newPurchase(); go('inicio');
+});
+function createRend(){
+ const d=document.getElementById('newRendDate').value||new Date().toISOString().slice(0,10);
+ db.rendiciones.push({id:nextRend(),date:d,obs:document.getElementById('newRendObs').value,reimbursed:0}); save();
+ document.getElementById('newRendObs').value='';
+}
+function reimburse(id){
+ const amount=rendSpent(id); const val=prompt('Monto de reposición recibido (Bs):',amount.toFixed(2));
+ if(val===null)return; const n=Number(val); if(!(n>=0))return alert('Monto inválido.');
+ const r=db.rendiciones.find(x=>x.id===id); r.reimbursed=n; save();
+}
+function deletePurchase(id){if(confirm('¿Eliminar esta compra?')){db.purchases=db.purchases.filter(p=>p.id!==id);save()}}
+function saveConfig(){
+ db.config.year=Number(document.getElementById('cYear').value); db.config.cash=Number(document.getElementById('cCaja').value); db.config.warn=Number(document.getElementById('cWarn').value); db.config.limit=Number(document.getElementById('cLimit').value); save(); alert('Configuración guardada.');
+}
+function loadConfig(){document.getElementById('cYear').value=db.config.year;document.getElementById('cCaja').value=db.config.cash;document.getElementById('cWarn').value=db.config.warn;document.getElementById('cLimit').value=db.config.limit;
+ const cats=['Materiales','Combustible','Transporte','Alimentación','Servicios','Mantenimiento','Oficina','Otros']; document.getElementById('fCat').innerHTML=cats.map(x=>`<option>${x}</option>`).join('')}
+function exportJSON(){download('respaldo_compras_'+db.config.year+'.json',JSON.stringify(db,null,2),'application/json')}
+function exportCSV(){
+ const head=['Rendición','Fecha','Factura','NIT','CUF','Proveedor','Total Bs','Categoría','Pago','Centro costo','Descripción','Observaciones'];
+ const lines=[head,...db.purchases.map(p=>[p.rend,p.date,p.factura,p.nit,p.cuf,p.proveedor,p.total,p.cat,p.pago,p.centro,p.desc,p.obs])].map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';'));
+ download('compras_'+db.config.year+'.csv','\ufeff'+lines.join('\n'),'text/csv;charset=utf-8')}
+function download(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function printReport(){window.print()}
+function resetAll(){if(confirm('Esta acción borrará todas las compras y rendiciones guardadas en este navegador. ¿Continuar?')){localStorage.removeItem(KEY);location.reload()}}
+function go(id){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x.dataset.tab===id))}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.tab)));
+loadConfig();renderAll();newPurchase();
+</script>
+</body>
+</html>
